@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
 
         if (pid == 0) {
             // EXEC INTO JOBEXECUTORSERVER
-            if (execl("/path/to/jobExecutorServer", "jobExecutorServer", (char *)NULL) == -1) {
+            if (execl("jobExecutorServer", "jobExecutorServer", (char *)NULL) == -1) {
                 perror("Failed to start jobExecutorServer");
                 exit(EXIT_FAILURE);
             }
@@ -23,13 +23,13 @@ int main(int argc, char *argv[]) {
     }
 
     // CREATE NAMED PIPE
-     if (mkfifo("/path/to/pipe", 0666) == -1) {
+     if (mkfifo("pipe", 0666) == -1) {
         perror("Failed to create pipe");
         exit(EXIT_FAILURE);
     }
 
     // OPEN SAID PIPE
-    int pipe_fd = open("/path/to/pipe", O_WRONLY | O_NONBLOCK);
+    int pipe_fd = open("pipe", O_WRONLY | O_NONBLOCK);
     if (pipe_fd == -1) {
         perror("Failed to open pipe");
         exit(EXIT_FAILURE);
