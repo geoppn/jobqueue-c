@@ -23,13 +23,15 @@ int main(int argc, char *argv[]) {
     }
 
     // CREATE NAMED PIPE
-     if (mkfifo("pipe", 0666) == -1) {
-        perror("Failed to create pipe");
-        exit(EXIT_FAILURE);
+    if (access("pipe", F_OK) == -1) {
+        if (mkfifo("pipe", 0666) == -1) {
+            perror("Failed to create pipe");
+            exit(EXIT_FAILURE);
+        }
     }
 
     // OPEN SAID PIPE
-    int pipe_fd = open("pipe", O_WRONLY | O_NONBLOCK);
+    int pipe_fd = open("pipe", O_WRONLY);
     if (pipe_fd == -1) {
         perror("Failed to open pipe");
         exit(EXIT_FAILURE);

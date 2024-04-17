@@ -9,24 +9,24 @@
 #include <fcntl.h>
 #include "jobQueue.h"
 
-JobDetail *jobs = NULL; // Initialize the head of the job list to NULL
+Job *jobs = NULL; // Initialize the head of the job list to NULL
 int concurrency = 1;
 
 void printRunningJobs() {
-    JobDetail *current = jobs;
+    Job *current = jobs;
     while (current != NULL) {
         if (current->status == RUNNING) {
-            printf("Job ID: %d, Command: %s, Status: RUNNING\n", current->id, current->command);
+            printf("Job ID: %s, Command: %s, Status: RUNNING\n", current->id, current->command);
         }
         current = current->next;
     }
 }
 
 void printQueuedJobs() {
-    JobDetail *current = jobs;
+    Job *current = jobs;
     while (current != NULL) {
         if (current->status == QUEUED) {
-            printf("Job ID: %d, Command: %s, Status: QUEUED\n", current->id, current->command);
+            printf("Job ID: %s, Command: %s, Status: QUEUED\n", current->id, current->command);
         }
         current = current->next;
     }
@@ -69,7 +69,7 @@ int main() {
     fclose(file);
 
     // OPEN THE PIPE
-    int pipe_fd = open("pipe", O_RDONLY | O_NONBLOCK);
+    int pipe_fd = open("pipe", O_RDONLY);
     if (pipe_fd == -1) {
         perror("Failed to open pipe");
         exit(EXIT_FAILURE);
@@ -81,16 +81,17 @@ int main() {
         char *cmd = strtok(command, " ");
         if (strcmp(cmd, "setConcurrency") == 0) {
             concurrency = atoi(strtok(NULL, " "));
+            printf("SLAY");
         } else if (strcmp(cmd, "stop") == 0) {
             char id[10];
             strtok(NULL, " ");  // Skip "job"
             strcpy(id, strtok(NULL, " "));  // Get job ID
 
             // Find job and remove it
-            JobDetail *job = findJobById(id);
+            Job *job = findJobById(id);
             if (job != NULL) {
                 if (job->status == RUNNING) {
-                    kill(job->pid, SIGTERM);
+                    kill(atoi(job->id + 4), SIGTERM); // Skip the "job_" part and convert the remaining part to an int
                     printf("job_%s terminated\n", id);
                 } else {
                     printf("job_%s removed\n", id);

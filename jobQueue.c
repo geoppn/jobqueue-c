@@ -1,9 +1,12 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include "jobQueue.h"
 
 Job *queue = NULL;
+
+static int jobCounter = 0; // Counter to keep track of the number of jobs
 
 int getQueueLength() {
     int length = 0;
@@ -18,7 +21,7 @@ int getQueueLength() {
 void addJob(char *command) {
     Job *job = malloc(sizeof(Job));
     strcpy(job->command, command);
-    sprintf(job->id, "%d", rand()); // Set the id to a random number
+    sprintf(job->id, "job_%d", ++jobCounter); // Set the id to "job_XX"
     job->queuePosition = getQueueLength() + 1; // Set the queue position to the current length of the queue + 1
     job->status = QUEUED; // Set the status to QUEUED
     job->next = NULL;
