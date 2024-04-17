@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <signal.h>
@@ -15,7 +16,7 @@ void printRunningJobs() {
     JobDetail *current = jobs;
     while (current != NULL) {
         if (current->status == RUNNING) {
-            printf("Job PID: %d, Command: %s, Status: RUNNING\n", current->pid, current->command);
+            printf("Job ID: %d, Command: %s, Status: RUNNING\n", current->id, current->command);
         }
         current = current->next;
     }
@@ -25,7 +26,7 @@ void printQueuedJobs() {
     JobDetail *current = jobs;
     while (current != NULL) {
         if (current->status == QUEUED) {
-            printf("Job PID: %d, Command: %s, Status: QUEUED\n", current->pid, current->command);
+            printf("Job ID: %d, Command: %s, Status: QUEUED\n", current->id, current->command);
         }
         current = current->next;
     }

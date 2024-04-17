@@ -1,21 +1,20 @@
 #ifndef JOB_QUEUE_H
 #define JOB_QUEUE_H
 
-typedef struct JobDetail {
-    char command[1024];
-    pid_t pid;
-    JobStatus status;
-    struct JobDetail *next;
-} JobDetail;
+typedef enum { QUEUED, RUNNING, COMPLETED, STOPPED } JobStatus;
 
 typedef struct Job {
-    char command[1024];
+    char id[20];  // jobID
+    char command[1024];  // job command
+    int queuePosition;  // queuePosition
+    JobStatus status;  // job status
     struct Job *next;
 } Job;
 
-typedef enum { QUEUED, RUNNING, COMPLETED, STOPPED } JobStatus;
-
-void addJob(char *command);
+int getQueueLength();
+void addJob(char *);
 Job *getNextJob();
+Job *findJobById(char *);
+void removeJob(Job *);
 
 #endif
