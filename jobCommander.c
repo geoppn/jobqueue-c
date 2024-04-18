@@ -7,6 +7,23 @@
 #include <string.h>
 
 int main(int argc, char *argv[]) {
+    // CREATE NAMED PIPE
+    if (access("pipe_cmd_exec", F_OK) == -1) {
+        if (mkfifo("pipe_cmd_exec", 0666) == -1) {
+            perror("Failed to create pipe");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // SECOND PIPE
+    if (access("pipe_exec_cmd", F_OK) == -1) {
+        if (mkfifo("pipe_exec_cmd", 0666) == -1) {
+            perror("Failed to create pipe");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+
 
     // CHECK IF JOBEXECUTORSERVER IS RUNNING
     if (access("jobExecutorServer.txt", F_OK) == -1) {
@@ -22,37 +39,20 @@ int main(int argc, char *argv[]) {
         } 
     }
 
-    // CREATE NAMED PIPE
-    if (access("pipe_cmd_exec", F_OK) == -1) {
-        if (mkfifo("pipe_cmd_exec", 0666) == -1) {
-            perror("Failed to create pipe");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    // OPEN SAID PIPE
+    // OPEN SAID PIPES
     int pipe_fd = open("pipe_cmd_exec", O_WRONLY);
     if (pipe_fd == -1) {
         perror("Failed to open pipe");
         exit(EXIT_FAILURE);
     }
-
-    // SECOND PIPE
-    if (access("pipe_exec_cmd", F_OK) == -1) {
-        if (mkfifo("pipe_exec_cmd", 0666) == -1) {
-            perror("Failed to create pipe");
-            exit(EXIT_FAILURE);
-        }
-    }
-
+    
     int pipe_fd2 = open("pipe_exec_cmd", O_RDONLY | O_NONBLOCK);
     if (pipe_fd2 == -1) {
         perror("Failed to open pipe");
         exit(EXIT_FAILURE);
     }
 
-    
-    
+
     // CONSTRUCT INSTRUCTION FROM ARGUMENTS
     char instruction[1024] = "";
     for (int i = 1; i < argc; i++) {

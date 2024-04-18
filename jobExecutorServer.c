@@ -114,7 +114,7 @@ int main() {
         } else if (strcmp(cmd, "exit") == 0) {
             printf("jobExecutorServer terminated.\n");
             break;
-        } else {
+        } else { // MAKE THIS A SPECIFIC CASE, FIX IT. COMMAND IS NOT WHOLE. CHANGE COMMAND HANDLING TO TAKE THE WHOLE THING THEN CUT IT FOR THE FIRST IF
             addJob(command);
         }
     }
@@ -123,6 +123,8 @@ int main() {
 
     close(pipe_fd);
     close(pipe_fd2);
+
+    // FIX THIS SHIT, TXT DELETES ONLY ON EXIT. ON EXIT WE NEED TO PIPE A MESSAGE TO COMMANDER AND PRINT IT THERE.
 
     // DELETE JOBEXECUTORSERVER.TXT
     if (remove("jobExecutorServer.txt") == -1) {
