@@ -23,19 +23,35 @@ int main(int argc, char *argv[]) {
     }
 
     // CREATE NAMED PIPE
-    if (access("pipe", F_OK) == -1) {
-        if (mkfifo("pipe", 0666) == -1) {
+    if (access("pipe_cmd_exec", F_OK) == -1) {
+        if (mkfifo("pipe_cmd_exec", 0666) == -1) {
             perror("Failed to create pipe");
             exit(EXIT_FAILURE);
         }
     }
 
     // OPEN SAID PIPE
-    int pipe_fd = open("pipe", O_WRONLY);
+    int pipe_fd = open("pipe_cmd_exec", O_WRONLY);
     if (pipe_fd == -1) {
         perror("Failed to open pipe");
         exit(EXIT_FAILURE);
     }
+
+    // SECOND PIPE
+    if (access("pipe_exec_cmd", F_OK) == -1) {
+        if (mkfifo("pipe_exec_cmd", 0666) == -1) {
+            perror("Failed to create pipe");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    int pipe_fd2 = open("pipe_exec_cmd", O_RDONLY | O_NONBLOCK);
+    if (pipe_fd2 == -1) {
+        perror("Failed to open pipe");
+        exit(EXIT_FAILURE);
+    }
+
+    
     
     // CONSTRUCT INSTRUCTION FROM ARGUMENTS
     char instruction[1024] = "";
@@ -50,8 +66,9 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    // CLOSE PIPE
+    // CLOSE PIPES
     close(pipe_fd);
+    close(pipe_fd2);
     
     return 0;
 }

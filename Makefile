@@ -10,4 +10,4 @@ jobExecutorServer: jobExecutorServer.c jobQueue.c
 	$(CC) -o jobExecutorServer jobExecutorServer.c jobQueue.c $(CFLAGS)
 
 clean:
-	rm -f jobCommander jobExecutorServer
+	rm -f jobCommander jobExecutorServer pipe jobExecutorServer.txt

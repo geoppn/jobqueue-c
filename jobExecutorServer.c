@@ -68,9 +68,15 @@ int main() {
     fprintf(file, "%d", getpid());
     fclose(file);
 
-    // OPEN THE PIPE
-    int pipe_fd = open("pipe", O_RDONLY);
+    // OPEN THE PIPES
+    int pipe_fd = open("pipe_cmd_exec", O_RDONLY | O_NONBLOCK);
     if (pipe_fd == -1) {
+        perror("Failed to open pipe");
+        exit(EXIT_FAILURE);
+    }
+
+    int pipe_fd2 = open("pipe_exec_cmd", O_WRONLY);
+    if (pipe_fd2 == -1) {
         perror("Failed to open pipe");
         exit(EXIT_FAILURE);
     }
@@ -116,6 +122,8 @@ int main() {
 
 
     close(pipe_fd);
+    close(pipe_fd2);
+
     // DELETE JOBEXECUTORSERVER.TXT
     if (remove("jobExecutorServer.txt") == -1) {
         perror("Failed to delete jobExecutorServer.txt");
