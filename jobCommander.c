@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <signal.h>
 
 int main(int argc, char *argv[]) {
     // CREATE NAMED PIPE
@@ -22,9 +23,7 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
     }
-
-
-
+    
     // CHECK IF JOBEXECUTORSERVER IS RUNNING
     if (access("jobExecutorServer.txt", F_OK) == -1) {
         // IT DOESNT EXIST, CREATE IT
@@ -38,20 +37,17 @@ int main(int argc, char *argv[]) {
             }
         } 
     }
-
-    // OPEN SAID PIPES
-    int pipe_fd = open("pipe_cmd_exec", O_WRONLY);
-    if (pipe_fd == -1) {
-        perror("Failed to open pipe");
-        exit(EXIT_FAILURE);
-    }
     
-    int pipe_fd2 = open("pipe_exec_cmd", O_RDONLY | O_NONBLOCK);
-    if (pipe_fd2 == -1) {
-        perror("Failed to open pipe");
+    // GET THE PID FROM THE .TXT
+    FILE *fp = fopen("jobExecutorServer.txt", "r");
+    if (fp == NULL) {
+        perror("Failed to open file");
         exit(EXIT_FAILURE);
     }
 
+    pid_t jobExecutorServer_pid;
+    fscanf(fp, "%d", &jobExecutorServer_pid);
+    fclose(fp);
 
     // CONSTRUCT INSTRUCTION FROM ARGUMENTS
     char instruction[1024] = "";
@@ -60,15 +56,31 @@ int main(int argc, char *argv[]) {
         strcat(instruction, " ");
     }
 
+    printf("Read PID: %d\n", jobExecutorServer_pid);
+    // SEND A SIGNAL TO THE JOBEXECUTORSERVER [ABOUT TO WRITE]
+    if (kill(jobExecutorServer_pid, SIGUSR1) == -1) {
+        perror("Failed to send signal");
+        exit(EXIT_FAILURE);
+    }
+
+    // OPEN THE WRITE PIPE
+    int pipe_fd = open("pipe_cmd_exec", O_WRONLY);
+    if (pipe_fd == -1) {
+        perror("Failed to open pipe");
+        exit(EXIT_FAILURE);
+    }
+    printf("Pipe opened CMD\n");
+
    // WRITE INSTRUCTION TO PIPE
     if (write(pipe_fd, instruction, strlen(instruction)) == -1) {
         perror("Failed to write to pipe");
         exit(EXIT_FAILURE);
     }
+    printf("Instruction sent to jobExecutorServer\n");
 
     // CLOSE PIPES
     close(pipe_fd);
-    close(pipe_fd2);
+    // close(pipe_fd2);
     
     return 0;
 }
