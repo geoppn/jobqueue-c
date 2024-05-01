@@ -11,7 +11,8 @@
 #include "jobQueue.h"
 
 Job *jobs = NULL; // Initialize the head of the job list to NULL
-int concurrency = 1; // WRONG
+int concurrency = 1; 
+int newConcurrency = -1; // TEMP VALUE FOR SETCONCURRENCY COMMAND [PIAZZA: CONCURRENCY CHANGES WHE NALL ACTIVE JOBS ARE FINISHED]
 
 void printRunningJobs() {
     Job *current = jobs;
@@ -33,7 +34,28 @@ void printQueuedJobs() {
     }
 }
 
+// Function to check if all jobs are finished
+int allJobsFinished() {
+    Job *current = jobs;
+    while (current != NULL) {
+        if (current->status == RUNNING) {
+            return 0;
+        }
+        current = current->next;
+    }
+    return 1;
+}
+
+// Function to update the concurrency when all active jobs are finished
+void updateConcurrency() {
+    if (newConcurrency != -1 && allJobsFinished()) {
+        concurrency = newConcurrency;
+        newConcurrency = -1;
+    }
+}
+
 void handle_sigchld(int sig) {
+    printf("SIGCHLD received\n");
     // Wait for all dead child processes
     while (waitpid(-1, NULL, WNOHANG) > 0) {
         // Take the next job from the queue and execute it
@@ -51,9 +73,12 @@ void handle_sigchld(int sig) {
                 exit(EXIT_FAILURE);
             }
             // Parent process continues here
-            free(job);
+            removeJob(job);
         }
     }
+
+    // Update the concurrency if all jobs are finished and a new concurrency value has been set
+    updateConcurrency();
 }
 
 void handle_sigusr1(int sig) {
@@ -63,59 +88,111 @@ void handle_sigusr1(int sig) {
         perror("Failed to open pipe");
         exit(EXIT_FAILURE);
     }
-    // if (read(pipe_fd, command, sizeof(command)) > 0) {
-    //     // COMMAND HANDLING [ALL WRONG BTW]
-    //     while (read(pipe_fd, command, sizeof(command)) > 0) {
-    //         char *cmd = strtok(command, " ");
-    //         if (strcmp(cmd, "setConcurrency") == 0) {
-    //             concurrency = atoi(strtok(NULL, " "));
-    //             printf("SLAY");
-    //         } else if (strcmp(cmd, "stop") == 0) {
-    //             char id[10];
-    //             strtok(NULL, " ");  // Skip "job"
-    //             strcpy(id, strtok(NULL, " "));  // Get job ID
+    if (read(pipe_fd, command, sizeof(command)) > 0) {
+        char *cmd = strtok(command, " ");
+        if (strcmp(cmd, "setConcurrency") == 0) {
+            newConcurrency = atoi(strtok(NULL, " "));
+            printf("New concurrency value set: %d\n", newConcurrency); // Print the new concurrency value
+        } else if (strcmp(cmd, "stop") == 0) {
+            char* jobID = strtok(NULL, " "); // Get the jobID from the command
 
-    //             // Find job and remove it
-    //             Job *job = findJobById(id);
-    //             if (job != NULL) {
-    //                 if (job->status == RUNNING) {
-    //                     kill(atoi(job->id + 4), SIGTERM); // Skip the "job_" part and convert the remaining part to an int
-    //                     printf("job_%s terminated\n", id);
-    //                 } else {
-    //                     printf("job_%s removed\n", id);
-    //                 }
-    //                 removeJob(job);
-    //             }
-    //         } else if (strcmp(cmd, "poll") == 0) {
-    //             char *option = strtok(NULL, " ");
-    //             if (strcmp(option, "running") == 0) {
-    //                 printRunningJobs();
-    //             } else if (strcmp(option, "queued") == 0) {
-    //                 printQueuedJobs();
-    //             }
-    //         } else if (strcmp(cmd, "exit") == 0) {
-    //             printf("jobExecutorServer terminated.\n");
-                
-    //             // Assuming pipe1 and pipe2 are the names of your pipes
-    //             if (unlink("pipe_exec_cmd") == -1) {
-    //                 perror("Failed to delete pipe");
-    //             }
-    //             if (unlink("pipe_cmd_exec") == -1) {
-    //                 perror("Failed to delete pipe");
-    //             }
+            // Find the job with the given jobID
+            Job* job = NULL;
+            Job* prev = NULL;
+            for (Job* current = jobs; current != NULL; current = current->next) {
+                if (strcmp(current->id, jobID) == 0) {
+                    job = current;
+                    break;
+                }
+                prev = current;
+            }
 
-    //             break;
-    //         }else { // MAKE THIS A SPECIFIC CASE, FIX IT. COMMAND IS NOT WHOLE. CHANGE COMMAND HANDLING TO TAKE THE WHOLE THING THEN CUT IT FOR THE FIRST IF
-    //             addJob(command);
-    //         }
-    //     }
-    // }
+            if (job != NULL) {
+                if (job->status == RUNNING) {
+                    // If the job is running, terminate it
+                    kill(job->pid, SIGTERM);
+                    job->status = STOPPED;
+                    printf("job_%s terminated\n", jobID);
+                } else if (job->status == QUEUED) {
+                    // If the job is queued, remove it from the queue
+                    if (prev == NULL) {
+                        jobs = job->next;
+                    } else {
+                        prev->next = job->next;
+                    }
+                    free(job);
+                    printf("job_%s removed\n", jobID);
+                }
+            } else {
+                printf("No job found with ID: %s\n", jobID);
+            }
+        } else if (strcmp(cmd, "exit") == 0) {
+            // DELETE JOBEXECUTORSERVER.TXT
+            if (remove("jobExecutorServer.txt") == -1) {
+                perror("Failed to delete jobExecutorServer.txt");
+            }
+
+            // UNLINK THE PIPE
+            if (unlink("pipe_cmd_exec") == -1) {
+                perror("Failed to unlink pipe_cmd_exec");
+            }
+
+            // USE OTHER PIPE TO SEND MESSAGE TO JOBCOMMANDER
+            int pipe_fd_write = open("pipe_exec_cmd", O_WRONLY);
+            if (pipe_fd_write == -1) {
+                perror("Failed to open pipe_exec_cmd");
+                exit(EXIT_FAILURE);
+            }
+
+            char message[] = "jobExecutorServer terminated.\n";
+            if (write(pipe_fd_write, message, sizeof(message)) == -1) {
+                perror("Failed to write to pipe_exec_cmd");
+            }
+
+            close(pipe_fd_write);
+         } else if (strcmp(cmd, "issueJob") == 0) {
+            // Get the command from the input
+            char *command = strtok(NULL, "\n");
+            // Add the job to the queue    
+            Job *job = addJob(command);
+
+            // Print the triplet <jobID, job, queuePosition>
+            if (job != NULL) {
+                // Print the triplet <jobID, job, queuePosition>
+                printf("<%s,%s,%d>\n", job->id, job->command, job->queuePosition);
+            } // This closing brace was missing
+            if (getQueueLength() == 1) {
+                pid_t pid = fork();
+                if (pid < 0) {
+                    // Fork failed
+                    printf("Fork failed.\n");
+                    return;
+                }
+
+                if (pid == 0) {
+                    // Child process
+                    char *args[] = {"/bin/sh", "-c", job->command, NULL};
+                    execvp(args[0], args);
+
+                    // execvp will only return if an error occurred.
+                    printf("An error occurred while executing the command.\n");
+                    exit(1);
+                } else {
+                    // Parent process
+                    job->pid = pid;  // Store the PID
+                    // Don't wait for the child process to finish here
+                    // The handle_sigchld function will be triggered when the child process finishes
+                }
+            }
+        }
+    }
+    
     close(pipe_fd);
 }
 int main() {
     // SIGNAL HANDLING
     signal(SIGUSR1, handle_sigusr1);
-    //signal(SIGCHLD, handle_sigchld);
+    signal(SIGCHLD, handle_sigchld);
 
 
     // CREATE JOBEXECUTORSERVER.TXT AND WRITE PID

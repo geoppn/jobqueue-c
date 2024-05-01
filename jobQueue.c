@@ -18,7 +18,7 @@ int getQueueLength() {
     return length;
 }
 
-void addJob(char *command) {
+Job* addJob(char *command) {
     Job *job = malloc(sizeof(Job));
     strcpy(job->command, command);
     sprintf(job->id, "job_%d", ++jobCounter); // Set the id to "job_XX"
@@ -35,6 +35,7 @@ void addJob(char *command) {
         }
         current->next = job;
     }
+    return job;
 }
 
 Job *getNextJob() {
