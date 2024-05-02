@@ -14,26 +14,6 @@ Job *jobs = NULL; // Initialize the head of the job list to NULL
 int concurrency = 1; 
 int newConcurrency = -1; // TEMP VALUE FOR SETCONCURRENCY COMMAND [PIAZZA: CONCURRENCY CHANGES WHE NALL ACTIVE JOBS ARE FINISHED]
 
-void printRunningJobs() {
-    Job *current = jobs;
-    while (current != NULL) {
-        if (current->status == RUNNING) {
-            printf("Job ID: %s, Command: %s, Status: RUNNING\n", current->id, current->command);
-        }
-        current = current->next;
-    }
-}
-
-void printQueuedJobs() {
-    Job *current = jobs;
-    while (current != NULL) {
-        if (current->status == QUEUED) {
-            printf("Job ID: %s, Command: %s, Status: QUEUED\n", current->id, current->command);
-        }
-        current = current->next;
-    }
-}
-
 // Function to check if all jobs are finished
 int allJobsFinished() {
     Job *current = jobs;
@@ -83,6 +63,7 @@ void handle_sigchld(int sig) {
 
 void handle_sigusr1(int sig) {
     char command[1024];
+    memset(command, 0, sizeof(command)); // RESET COMMAND BUFFER BETWEEN COMMANDS!
     int pipe_fd = open("pipe_cmd_exec", O_RDONLY); // OPEN THE READ PIPE (ONLY WHEN SIGNAL IS RECEIVED)
     if (pipe_fd == -1) {
         perror("Failed to open pipe");
@@ -90,10 +71,10 @@ void handle_sigusr1(int sig) {
     }
     if (read(pipe_fd, command, sizeof(command)) > 0) {
         char *cmd = strtok(command, " ");
-        if (strcmp(cmd, "setConcurrency") == 0) {
+        if (strcmp(cmd, "setConcurrency") == 0) { // !!!!!!!!!!! SETCONCURRRENCY !!!!!!!!!!!
             newConcurrency = atoi(strtok(NULL, " "));
             printf("New concurrency value set: %d\n", newConcurrency); // Print the new concurrency value
-        } else if (strcmp(cmd, "stop") == 0) {
+        } else if (strcmp(cmd, "stop") == 0) { // !!!!!!!!!!! STOP !!!!!!!!!!!
             char* jobID = strtok(NULL, " "); // Get the jobID from the command
 
             // Find the job with the given jobID
@@ -126,7 +107,7 @@ void handle_sigusr1(int sig) {
             } else {
                 printf("No job found with ID: %s\n", jobID);
             }
-        } else if (strcmp(cmd, "exit") == 0) {
+        } else if (strcmp(cmd, "exit") == 0) { // !!!!!!!!!!! EXIT !!!!!!!!!!!
             // DELETE JOBEXECUTORSERVER.TXT
             if (remove("jobExecutorServer.txt") == -1) {
                 perror("Failed to delete jobExecutorServer.txt");
@@ -150,7 +131,7 @@ void handle_sigusr1(int sig) {
             }
 
             close(pipe_fd_write);
-         } else if (strcmp(cmd, "issueJob") == 0) {
+         } else if (strcmp(cmd, "issueJob") == 0) { // !!!!!!!!!!! ISSUEJOB !!!!!!!!!!!
             // Get the command from the input
             char *command = strtok(NULL, "\n");
             // Add the job to the queue    
@@ -161,7 +142,7 @@ void handle_sigusr1(int sig) {
                 // Print the triplet <jobID, job, queuePosition>
                 printf("<%s,%s,%d>\n", job->id, job->command, job->queuePosition);
             } // This closing brace was missing
-            if (getQueueLength() == 1) {
+            if (getQueueLength() == 1) { // ########################################### ISSUE?
                 pid_t pid = fork();
                 if (pid < 0) {
                     // Fork failed
@@ -184,6 +165,71 @@ void handle_sigusr1(int sig) {
                     // The handle_sigchld function will be triggered when the child process finishes
                 }
             }
+        }else if(strcmp(cmd, "poll") == 0){ // !!!!!!!!!!! POLL !!!!!!!!!!!
+            // Get the status from the input
+            char *status = strtok(NULL, "\n");
+
+            // USE OTHER PIPE TO SEND MESSAGE TO JOBCOMMANDER
+            int pipe_fd_write = open("pipe_exec_cmd", O_WRONLY);
+            if (pipe_fd_write == -1) {
+                perror("Failed to open pipe_exec_cmd");
+                exit(EXIT_FAILURE);
+            }
+
+            char *message = malloc(1);
+            if (strcmp(status, "running") == 0) {
+                // Get running jobs
+                Job *current = jobs;
+                while (current != NULL) {
+                    if (current->status == RUNNING) {
+                        int jobDetailsSize = snprintf(NULL, 0, "Job ID: %s, Command: %s, Queue Position: %d\n", current->id, current->command, current->queuePosition) + 1;
+                        char* jobDetails = malloc(jobDetailsSize);
+                        if (jobDetails == NULL) {
+                            perror("Failed to allocate memory for jobDetails");
+                            exit(EXIT_FAILURE);
+                        }
+                        snprintf(jobDetails, jobDetailsSize, "Job ID: %s, Command: %s, Queue Position: %d\n", current->id, current->command, current->queuePosition);
+                        message = realloc(message, strlen(message) + strlen(jobDetails) + 1);
+                        if (message == NULL) {
+                            perror("Failed to allocate memory for message");
+                            exit(EXIT_FAILURE);
+                        }
+                        strcat(message, jobDetails);
+                        free(jobDetails);
+                    }
+                    current = current->next;
+                }
+            } else if (strcmp(status, "queued") == 0) {
+                // Get queued jobs
+                Job *current = jobs;
+                while (current != NULL) {
+                    if (current->status == QUEUED) {
+                        int jobDetailsSize = snprintf(NULL, 0, "Job ID: %s, Command: %s, Queue Position: %d\n", current->id, current->command, current->queuePosition) + 1;
+                        char* jobDetails = malloc(jobDetailsSize);
+                        if (jobDetails == NULL) {
+                            perror("Failed to allocate memory for jobDetails");
+                            exit(EXIT_FAILURE);
+                        }
+                        snprintf(jobDetails, jobDetailsSize, "Job ID: %s, Command: %s, Queue Position: %d\n", current->id, current->command, current->queuePosition);
+                        message = realloc(message, strlen(message) + strlen(jobDetails) + 1);
+                        if (message == NULL) {
+                            perror("Failed to allocate memory for message");
+                            exit(EXIT_FAILURE);
+                        }
+                        strcat(message, jobDetails);
+                        free(jobDetails);
+                    }
+                    current = current->next;
+                }
+            } else {
+                sprintf(message, "Invalid status for poll command.\n");
+            }
+
+            if (write(pipe_fd_write, message, sizeof(message)) == -1) {
+                perror("Failed to write to pipe_exec_cmd");
+            }
+
+            close(pipe_fd_write);
         }
     }
     

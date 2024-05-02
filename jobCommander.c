@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
     // CLOSE PIPE
     close(pipe_fd);
 
-    if (strcmp(instruction, "exit ") == 0) { // SPACE NEEDED AFTER EXIT
+    if (strcmp(instruction, "exit ") == 0 || strcmp(instruction, "poll ") == 0) { // SPACE NEEDED AFTER EXIT AND POLL
     // OPEN THE READ PIPE
     int pipe_fd2 = open("pipe_exec_cmd", O_RDONLY);
     if (pipe_fd2 == -1) {
