@@ -35,7 +35,10 @@ int main(int argc, char *argv[]) {
                 perror("Failed to start jobExecutorServer");
                 exit(EXIT_FAILURE);
             }
-        } 
+        } else {
+            // Parent process, wait for a while to let the child process create the file
+            usleep(500000); // SLEEP FOR HALF A SECOND SO THE FILE GETS CREATED
+        }
     }
     
     // GET THE PID FROM THE .TXT

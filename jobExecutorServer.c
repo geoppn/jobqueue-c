@@ -34,7 +34,7 @@ void updateConcurrency() {
     }
 }
 
-void handle_sigchld(int sig) {
+void handle_sigchld(int sig) { // DOESNT ACCOUNT FOR CONCURRENCY?
     printf("SIGCHLD received\n");
     // Wait for all dead child processes
     while (waitpid(-1, NULL, WNOHANG) > 0) {
@@ -51,13 +51,15 @@ void handle_sigchld(int sig) {
                 execv(args[0], args);
                 perror("Failed to exec");
                 exit(EXIT_FAILURE);
+            } else { // PARENT
+                job->status = RUNNING;    
             }
-            // Parent process continues here
-            removeJob(job);
+            
+
         }
     }
 
-    // Update the concurrency if all jobs are finished and a new concurrency value has been set
+    // CHECK IF NEW CONCURRENCY VALUE IS PENDING
     updateConcurrency();
 }
 
@@ -74,8 +76,9 @@ void handle_sigusr1(int sig) {
         if (strcmp(cmd, "setConcurrency") == 0) { // !!!!!!!!!!! SETCONCURRRENCY !!!!!!!!!!!
             newConcurrency = atoi(strtok(NULL, " "));
             printf("New concurrency value set: %d\n", newConcurrency); // Print the new concurrency value
-        } else if (strcmp(cmd, "stop") == 0) { // !!!!!!!!!!! STOP !!!!!!!!!!!
+        } else if (strcmp(cmd, "stop") == 0) { //        !!!!!!!!!!! STOP !!!!!!!!!!!
             char* jobID = strtok(NULL, " "); // Get the jobID from the command
+            printf("Stopping job with ID: %s\n", jobID);  // Print the jobID
 
             // Find the job with the given jobID
             Job* job = NULL;
@@ -92,7 +95,6 @@ void handle_sigusr1(int sig) {
                 if (job->status == RUNNING) {
                     // If the job is running, terminate it
                     kill(job->pid, SIGTERM);
-                    job->status = STOPPED;
                     printf("job_%s terminated\n", jobID);
                 } else if (job->status == QUEUED) {
                     // If the job is queued, remove it from the queue
@@ -102,7 +104,7 @@ void handle_sigusr1(int sig) {
                         prev->next = job->next;
                     }
                     free(job);
-                    printf("job_%s removed\n", jobID);
+                    printf("%s removed\n", jobID);
                 }
             } else {
                 printf("No job found with ID: %s\n", jobID);
@@ -142,27 +144,24 @@ void handle_sigusr1(int sig) {
                 // Print the triplet <jobID, job, queuePosition>
                 printf("<%s,%s,%d>\n", job->id, job->command, job->queuePosition);
             } // This closing brace was missing
-            if (getQueueLength() == 1) { // ########################################### ISSUE?
+            if (getQueueLength() == 1) { // IF ITS THE FIRST JOB WITHIN THE QUEUE, EXECUTE IT LOCALLY
                 pid_t pid = fork();
-                if (pid < 0) {
-                    // Fork failed
-                    printf("Fork failed.\n");
-                    return;
-                }
-
                 if (pid == 0) {
                     // Child process
                     char *args[] = {"/bin/sh", "-c", job->command, NULL};
                     execvp(args[0], args);
 
-                    // execvp will only return if an error occurred.
+                    // ERROR HANDLING
                     printf("An error occurred while executing the command.\n");
                     exit(1);
                 } else {
-                    // Parent process
-                    job->pid = pid;  // Store the PID
-                    // Don't wait for the child process to finish here
-                    // The handle_sigchld function will be triggered when the child process finishes
+                    // PARENT
+                    job->pid = pid;  // STORE PID
+                    job->status = RUNNING;
+
+                    //waitpid(pid, NULL, WNOHANG); // ONCE THE JOB IS DONE, WE REMOVE IT FROM THE QUEUE
+                    //removeJob(job); // INSANEEEEEEEEEEE ISSUE
+                    // HANDLE SIGCHLD IS TRIGGERED HERE
                 }
             }
         }else if(strcmp(cmd, "poll") == 0){ // !!!!!!!!!!! POLL !!!!!!!!!!!
@@ -263,8 +262,6 @@ int main() {
     while (1) { // SIGNAL WAITING LOOP
         pause(); 
     }
-
-    printf("JobExecutorServer is FINISHED\n");
 
     return 0;
 }

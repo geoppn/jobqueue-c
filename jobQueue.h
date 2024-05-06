@@ -1,7 +1,7 @@
 #ifndef JOB_QUEUE_H
 #define JOB_QUEUE_H
 
-typedef enum { QUEUED, RUNNING, COMPLETED, STOPPED } JobStatus;
+typedef enum { QUEUED, RUNNING } JobStatus;
 
 typedef struct Job {
     char id[10];  // jobID
