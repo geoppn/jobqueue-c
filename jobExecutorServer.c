@@ -85,22 +85,36 @@ void handle_sigusr1(int sig) {
             printf("New concurrency value set: %d\n", newConcurrency); // Print the new concurrency value
         } else if (strcmp(cmd, "stop") == 0) { //        !!!!!!!!!!! STOP !!!!!!!!!!!
             char* jobID = strtok(NULL, " "); // Get the jobID from the command
-
+            char message[256]; 
             Job* job = findJobById(jobID);
 
            if (job != NULL) {
                 if (job->status == RUNNING) {
                     // If the job is running, terminate it
                     kill(job->pid, SIGTERM);
-                    printf("%s terminated\n", job->id);
+                    sprintf(message, "%s terminated\n", job->id);
+                    //printf("%s terminated\n", job->id);
                 } else if (job->status == QUEUED) {
                     // If the job is queued, remove it from the queue
                     removeJob(job);
-                    printf("%s removed\n", job->id);
+                    sprintf(message, "%s removed\n", job->id);
+                    //printf("%s removed\n", job->id);
                 }
             } else {
-                printf("No job found with ID: %s\n", jobID);
+                sprintf(message, "No job found with ID: %s\n", jobID);
             }
+            // PIPE HANDLING
+            int pipe_fd_write = open("pipe_exec_cmd", O_WRONLY);
+            if (pipe_fd_write == -1) {
+                perror("Failed to open pipe_exec_cmd");
+                exit(EXIT_FAILURE);
+            }
+
+            if (write(pipe_fd_write, message, sizeof(message)) == -1) {
+                perror("Failed to write to pipe_exec_cmd");
+            }
+
+            close(pipe_fd_write);
         } else if (strcmp(cmd, "exit") == 0) { // !!!!!!!!!!! EXIT !!!!!!!!!!!
             // DELETE JOBEXECUTORSERVER.TXT
             if (remove("jobExecutorServer.txt") == -1) {
