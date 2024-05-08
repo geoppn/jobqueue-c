@@ -170,7 +170,7 @@ void handle_sigusr1(int sig) {
         }else if(strcmp(cmd, "poll") == 0){ // !!!!!!!!!!! POLL !!!!!!!!!!!
             // Get the status from the input
             char *status = strtok(NULL, "\n");
-
+            printf("Status: %s\n", status);
             // USE OTHER PIPE TO SEND MESSAGE TO JOBCOMMANDER
             int pipe_fd_write = open("pipe_exec_cmd", O_WRONLY);
             if (pipe_fd_write == -1) {
@@ -178,26 +178,15 @@ void handle_sigusr1(int sig) {
                 exit(EXIT_FAILURE);
             }
 
-            char *message = malloc(1);
+            char message[1024] = ""; // Static buffer for the message
             if (strcmp(status, "running") == 0) {
                 // Get running jobs
                 Job *current = jobs;
                 while (current != NULL) {
                     if (current->status == RUNNING) {
-                        int jobDetailsSize = snprintf(NULL, 0, "Job ID: %s, Command: %s, Queue Position: %d\n", current->id, current->command, current->queuePosition) + 1;
-                        char* jobDetails = malloc(jobDetailsSize);
-                        if (jobDetails == NULL) {
-                            perror("Failed to allocate memory for jobDetails");
-                            exit(EXIT_FAILURE);
-                        }
-                        snprintf(jobDetails, jobDetailsSize, "Job ID: %s, Command: %s, Queue Position: %d\n", current->id, current->command, current->queuePosition);
-                        message = realloc(message, strlen(message) + strlen(jobDetails) + 1);
-                        if (message == NULL) {
-                            perror("Failed to allocate memory for message");
-                            exit(EXIT_FAILURE);
-                        }
-                        strcat(message, jobDetails);
-                        free(jobDetails);
+                        char jobDetails[256]; // Static buffer for the job details
+                        snprintf(jobDetails, sizeof(jobDetails), "Job ID: %.50s, Command: %.150s, Queue Position: %d\n", current->id, current->command, current->queuePosition);
+                        strncat(message, jobDetails, sizeof(message) - strlen(message) - 1); // Append job details to the message
                     }
                     current = current->next;
                 }
@@ -206,28 +195,17 @@ void handle_sigusr1(int sig) {
                 Job *current = jobs;
                 while (current != NULL) {
                     if (current->status == QUEUED) {
-                        int jobDetailsSize = snprintf(NULL, 0, "Job ID: %s, Command: %s, Queue Position: %d\n", current->id, current->command, current->queuePosition) + 1;
-                        char* jobDetails = malloc(jobDetailsSize);
-                        if (jobDetails == NULL) {
-                            perror("Failed to allocate memory for jobDetails");
-                            exit(EXIT_FAILURE);
-                        }
-                        snprintf(jobDetails, jobDetailsSize, "Job ID: %s, Command: %s, Queue Position: %d\n", current->id, current->command, current->queuePosition);
-                        message = realloc(message, strlen(message) + strlen(jobDetails) + 1);
-                        if (message == NULL) {
-                            perror("Failed to allocate memory for message");
-                            exit(EXIT_FAILURE);
-                        }
-                        strcat(message, jobDetails);
-                        free(jobDetails);
+                        char jobDetails[256]; // Static buffer for the job details
+                        snprintf(jobDetails, sizeof(jobDetails), "Job ID: %.50s, Command: %.150s, Queue Position: %d\n", current->id, current->command, current->queuePosition);
+                        strncat(message, jobDetails, sizeof(message) - strlen(message) - 1); // Append job details to the message
                     }
                     current = current->next;
                 }
             } else {
-                sprintf(message, "Invalid status for poll command.\n");
+                snprintf(message, sizeof(message), "Invalid status for poll command.\n");
             }
 
-            if (write(pipe_fd_write, message, sizeof(message)) == -1) {
+            if (write(pipe_fd_write, message, strlen(message)) == -1) {
                 perror("Failed to write to pipe_exec_cmd");
             }
 
