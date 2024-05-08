@@ -13,6 +13,7 @@
 Job *jobs = NULL; // Initialize the head of the job list to NULL
 int concurrency = 1; 
 int newConcurrency = -1; // TEMP VALUE FOR SETCONCURRENCY COMMAND [PIAZZA: CONCURRENCY CHANGES WHE NALL ACTIVE JOBS ARE FINISHED]
+char GjobID[10] = "job_0"; // JOBID GLOBAL VARIABLE TO REMOVE THE JOB WITHIN THE SIGCHLD HANDLER TO ENSURE STOP WORKS CORRECTLY
 
 // Function to check if all jobs are finished
 int allJobsFinished() {
@@ -36,6 +37,12 @@ void updateConcurrency() {
 
 void handle_sigchld(int sig) { // DOESNT ACCOUNT FOR CONCURRENCY?
     printf("SIGCHLD received\n");
+
+    Job* jobToRemove = findJobById(GjobID); // FIND AND REMOVE THE PREVIOUS JOB BEFORE REPLACING IT
+    if (jobToRemove != NULL) {
+        removeJob(jobToRemove);
+    }
+
     // Wait for all dead child processes
     while (waitpid(-1, NULL, WNOHANG) > 0) {
         // Take the next job from the queue and execute it
@@ -78,33 +85,18 @@ void handle_sigusr1(int sig) {
             printf("New concurrency value set: %d\n", newConcurrency); // Print the new concurrency value
         } else if (strcmp(cmd, "stop") == 0) { //        !!!!!!!!!!! STOP !!!!!!!!!!!
             char* jobID = strtok(NULL, " "); // Get the jobID from the command
-            printf("Stopping job with ID: %s\n", jobID);  // Print the jobID
 
-            // Find the job with the given jobID
-            Job* job = NULL;
-            Job* prev = NULL;
-            for (Job* current = jobs; current != NULL; current = current->next) {
-                if (strcmp(current->id, jobID) == 0) {
-                    job = current;
-                    break;
-                }
-                prev = current;
-            }
+            Job* job = findJobById(jobID);
 
-            if (job != NULL) {
+           if (job != NULL) {
                 if (job->status == RUNNING) {
                     // If the job is running, terminate it
                     kill(job->pid, SIGTERM);
-                    printf("job_%s terminated\n", jobID);
+                    printf("%s terminated\n", job->id);
                 } else if (job->status == QUEUED) {
                     // If the job is queued, remove it from the queue
-                    if (prev == NULL) {
-                        jobs = job->next;
-                    } else {
-                        prev->next = job->next;
-                    }
-                    free(job);
-                    printf("%s removed\n", jobID);
+                    removeJob(job);
+                    printf("%s removed\n", job->id);
                 }
             } else {
                 printf("No job found with ID: %s\n", jobID);
@@ -138,7 +130,6 @@ void handle_sigusr1(int sig) {
             char *command = strtok(NULL, "\n");
             // Add the job to the queue    
             Job *job = addJob(command);
-
             // Print the triplet <jobID, job, queuePosition>
             if (job != NULL) {
                 // Print the triplet <jobID, job, queuePosition>
@@ -158,9 +149,7 @@ void handle_sigusr1(int sig) {
                     // PARENT
                     job->pid = pid;  // STORE PID
                     job->status = RUNNING;
-
-                    //waitpid(pid, NULL, WNOHANG); // ONCE THE JOB IS DONE, WE REMOVE IT FROM THE QUEUE
-                    //removeJob(job); // INSANEEEEEEEEEEE ISSUE
+                    strncpy(GjobID, job->id, sizeof(GjobID) - 1); // SAVE THE JOBID GLOBALLY
                     // HANDLE SIGCHLD IS TRIGGERED HERE
                 }
             }

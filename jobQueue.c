@@ -90,11 +90,13 @@ void removeJob(Job *job) {
         free(temp);
         // Update the queuePosition of all remaining jobs
         current = current->next;
-        int position = current->queuePosition;
-        while (current != NULL) {
-            current->queuePosition = position;
-            position++;
-            current = current->next;
+        if (current != NULL) {
+            int position = current->queuePosition;
+            while (current != NULL) {
+                current->queuePosition = position;
+                position++;
+                current = current->next;
+            }
         }
     }
 }

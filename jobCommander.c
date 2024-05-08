@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
     fclose(fp);
 
     // CONSTRUCT INSTRUCTION FROM ARGUMENTS
-    char instruction[1024] = "";
+    char instruction[1024] = ""; // CANT BE STATIC. FIX!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     for (int i = 1; i < argc; i++) {
         strcat(instruction, argv[i]);
         strcat(instruction, " ");
@@ -81,27 +81,27 @@ int main(int argc, char *argv[]) {
     // CLOSE PIPE
     close(pipe_fd);
 
-    if (strcmp(instruction, "exit ") == 0 || strcmp(instruction, "poll ") == 0) { // SPACE NEEDED AFTER EXIT AND POLL
-    // OPEN THE READ PIPE
-    int pipe_fd2 = open("pipe_exec_cmd", O_RDONLY);
-    if (pipe_fd2 == -1) {
-        perror("Failed to open pipe_exec_cmd");
-        exit(EXIT_FAILURE);
-    }
+    if (strcmp(instruction, "exit ") == 0 || strcmp(instruction, "poll ") == 0 || strcmp(instruction, "stop ") == 0) { // SPACE NEEDED AFTER EXIT AND POLL
+        // OPEN THE READ PIPE
+        int pipe_fd2 = open("pipe_exec_cmd", O_RDONLY);
+        if (pipe_fd2 == -1) {
+            perror("Failed to open pipe_exec_cmd");
+            exit(EXIT_FAILURE);
+        }
 
-    // READ THE MESSAGE
-    char message[1024];
-    if (read(pipe_fd2, message, sizeof(message)) > 0) {
-        printf("%s", message);
-    }
+        // READ THE MESSAGE
+        char message[1024];
+        if (read(pipe_fd2, message, sizeof(message)) > 0) {
+            printf("%s", message);
+        }
 
-    // CLOSE AND DELETE READ PIPE
-    close(pipe_fd2);
+        // CLOSE AND DELETE READ PIPE
+        close(pipe_fd2);
 
-    if (unlink("pipe_exec_cmd") == -1) {
-        perror("Failed to unlink pipe_exec_cmd");
+        if (unlink("pipe_exec_cmd") == -1) {
+            perror("Failed to unlink pipe_exec_cmd");
+        }
     }
-}
 
     
     return 0;
