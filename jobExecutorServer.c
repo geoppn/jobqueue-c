@@ -10,30 +10,29 @@
 #include <signal.h>
 #include "jobQueue.h"
 
-Job *jobs = NULL; // Initialize the head of the job list to NULL
 int concurrency = 1; 
 int newConcurrency = -1; // TEMP VALUE FOR SETCONCURRENCY COMMAND [PIAZZA: CONCURRENCY CHANGES WHE NALL ACTIVE JOBS ARE FINISHED]
 char GjobID[10] = "job_0"; // JOBID GLOBAL VARIABLE TO REMOVE THE JOB WITHIN THE SIGCHLD HANDLER TO ENSURE STOP WORKS CORRECTLY
 
 // Function to check if all jobs are finished
-int allJobsFinished() {
-    Job *current = jobs;
-    while (current != NULL) {
-        if (current->status == RUNNING) {
-            return 0;
-        }
-        current = current->next;
-    }
-    return 1;
-}
+// int allJobsFinished() {
+//     Job *current = jobs;
+//     while (current != NULL) {
+//         if (current->status == RUNNING) {
+//             return 0;
+//         }
+//         current = current->next;
+//     }
+//     return 1;
+// }
 
 // Function to update the concurrency when all active jobs are finished
-void updateConcurrency() {
-    if (newConcurrency != -1 && allJobsFinished()) {
-        concurrency = newConcurrency;
-        newConcurrency = -1;
-    }
-}
+// void updateConcurrency() {
+//     if (newConcurrency != -1 && allJobsFinished()) {
+//         concurrency = newConcurrency;
+//         newConcurrency = -1;
+//     }
+// }
 
 void handle_sigchld(int sig) { // DOESNT ACCOUNT FOR CONCURRENCY?
     printf("SIGCHLD received\n");
@@ -47,27 +46,25 @@ void handle_sigchld(int sig) { // DOESNT ACCOUNT FOR CONCURRENCY?
     while (waitpid(-1, NULL, WNOHANG) > 0) {
         // Take the next job from the queue and execute it
         Job *job = getNextJob();
-        if (job != NULL) {
+        job->status = RUNNING; 
+        if (job != NULL) { 
             pid_t pid = fork();
             if (pid == -1) {
                 perror("Failed to fork");
                 exit(EXIT_FAILURE);
             } else if (pid == 0) {
-                // Child process
+                // Child process 
                 char *args[] = {"/bin/sh", "-c", job->command, NULL};
                 execv(args[0], args);
                 perror("Failed to exec");
                 exit(EXIT_FAILURE);
-            } else { // PARENT
-                job->status = RUNNING;    
-            }
-            
+            } 
 
         }
     }
 
     // CHECK IF NEW CONCURRENCY VALUE IS PENDING
-    updateConcurrency();
+    //updateConcurrency();
 }
 
 void handle_sigusr1(int sig) {
@@ -179,27 +176,13 @@ void handle_sigusr1(int sig) {
 
             char message[1024] = ""; // Static buffer for the message
             if (strcmp(status, "running ") == 0) { // SPACE NEEDED
-                // Get running jobs
-                Job *current = getNextJob();
-                while (current != NULL) {
-                    if (current->status == RUNNING) {
-                        char jobDetails[256]; // Static buffer for the job details
-                        snprintf(jobDetails, sizeof(jobDetails), "Job ID: %.50s, Command: %.150s, Queue Position: %d\n", current->id, current->command, current->queuePosition);
-                        strncat(message, jobDetails, sizeof(message) - strlen(message) - 1); // Append job details to the message
-                    }
-                    current = getNextJob();
-                }
+                char *jobDetails = getJobDetailsWithStatus(RUNNING);
+                strncat(message, jobDetails, sizeof(message) - strlen(message) - 1);
+                free(jobDetails); // Don't forget to free the memory!
             } else if (strcmp(status, "queued ") == 0) {
-                // Get queued jobs
-                Job *current = getNextJob();
-                while (current != NULL) {
-                    if (current->status == QUEUED) {
-                        char jobDetails[256]; // Static buffer for the job details
-                        snprintf(jobDetails, sizeof(jobDetails), "Job ID: %.50s, Command: %.150s, Queue Position: %d\n", current->id, current->command, current->queuePosition);
-                        strncat(message, jobDetails, sizeof(message) - strlen(message) - 1); // Append job details to the message
-                    }
-                    current = getNextJob();
-                }
+                char *jobDetails = getJobDetailsWithStatus(QUEUED);
+                strncat(message, jobDetails, sizeof(message) - strlen(message) - 1);
+                free(jobDetails); // Don't forget to free the memory!
             } else {
                 snprintf(message, sizeof(message), "Invalid status for poll command. use 'running' or 'queued' as arguments.\n");
             }

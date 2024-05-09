@@ -100,3 +100,20 @@ void removeJob(Job *job) {
         }
     }
 }
+
+char* getJobDetailsWithStatus(JobStatus status) {
+    char *message = malloc(1024 * sizeof(char)); // Allocate memory for the message
+    message[0] = '\0'; // Initialize the message to an empty string
+
+    Job *current = queue;
+    while (current != NULL) {
+        if (current->status == status) {
+            char jobDetails[256]; // Static buffer for the job details
+            snprintf(jobDetails, sizeof(jobDetails), "Job ID: %.50s, Command: %.150s, Queue Position: %d\n", current->id, current->command, current->queuePosition);
+            strncat(message, jobDetails, 1024 - strlen(message) - 1); // Append job details to the message
+        }
+        current = current->next;
+    }
+
+    return message;
+}

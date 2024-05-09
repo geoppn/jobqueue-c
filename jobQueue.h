@@ -17,5 +17,6 @@ Job* addJob(char *);
 Job *getNextJob();
 Job *findJobById(char *);
 void removeJob(Job *);
+char* getJobDetailsWithStatus(JobStatus);
 
 #endif
