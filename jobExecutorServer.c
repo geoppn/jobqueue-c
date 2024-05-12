@@ -11,31 +11,13 @@
 #include "jobQueue.h"
 
 int concurrency = 1; 
-int newConcurrency = -1; // TEMP VALUE FOR SETCONCURRENCY COMMAND [PIAZZA: CONCURRENCY CHANGES WHE NALL ACTIVE JOBS ARE FINISHED]
+int running_jobs = 0; // AMOUNT OF CURRENTLY RUNNING JOBS
 char GjobID[10] = "job_0"; // JOBID GLOBAL VARIABLE TO REMOVE THE JOB WITHIN THE SIGCHLD HANDLER TO ENSURE STOP WORKS CORRECTLY
 
-// Function to check if all jobs are finished
-// int allJobsFinished() {
-//     Job *current = jobs;
-//     while (current != NULL) {
-//         if (current->status == RUNNING) {
-//             return 0;
-//         }
-//         current = current->next;
-//     }
-//     return 1;
-// }
-
-// Function to update the concurrency when all active jobs are finished
-// void updateConcurrency() {
-//     if (newConcurrency != -1 && allJobsFinished()) {
-//         concurrency = newConcurrency;
-//         newConcurrency = -1;
-//     }
-// }
-
-void handle_sigchld(int sig) { // DOESNT ACCOUNT FOR CONCURRENCY?
+void handle_sigchld(int sig) {
     printf("SIGCHLD received\n");
+    printf("conc: %d\n", concurrency);
+    printf("running_jobs: %d\n", running_jobs);
 
     Job* jobToRemove = findJobById(GjobID); // FIND AND REMOVE THE PREVIOUS JOB BEFORE REPLACING IT
     if (jobToRemove != NULL) {
@@ -44,10 +26,14 @@ void handle_sigchld(int sig) { // DOESNT ACCOUNT FOR CONCURRENCY?
 
     // Wait for all dead child processes
     while (waitpid(-1, NULL, WNOHANG) > 0) {
-        // Take the next job from the queue and execute it
+        running_jobs--; // Decrement the count of running jobs
+    }
+
+    // Start new jobs up to the concurrency limit
+    while (running_jobs < concurrency) {
         Job *job = getNextJob();
-        job->status = RUNNING; 
-        if (job != NULL) { 
+        if (job != NULL) {
+            job->status = RUNNING; 
             pid_t pid = fork();
             if (pid == -1) {
                 perror("Failed to fork");
@@ -58,13 +44,13 @@ void handle_sigchld(int sig) { // DOESNT ACCOUNT FOR CONCURRENCY?
                 execv(args[0], args);
                 perror("Failed to exec");
                 exit(EXIT_FAILURE);
-            } 
-
+            } else {
+                running_jobs++; // Increment the count of running jobs
+            }
+        } else {
+            break; // No more jobs in the queue
         }
     }
-
-    // CHECK IF NEW CONCURRENCY VALUE IS PENDING
-    //updateConcurrency();
 }
 
 void handle_sigusr1(int sig) {
@@ -78,8 +64,8 @@ void handle_sigusr1(int sig) {
     if (read(pipe_fd, command, sizeof(command)) > 0) {
         char *cmd = strtok(command, " ");
         if (strcmp(cmd, "setConcurrency") == 0) { // !!!!!!!!!!! SETCONCURRRENCY !!!!!!!!!!!
-            newConcurrency = atoi(strtok(NULL, " "));
-            printf("New concurrency value set: %d\n", newConcurrency); // Print the new concurrency value
+            concurrency = atoi(strtok(NULL, " ")); // Get the concurrency from the command
+            printf("Concurrency set to %d\n", concurrency);
         } else if (strcmp(cmd, "stop") == 0) { //        !!!!!!!!!!! STOP !!!!!!!!!!!
             char* jobID = strtok(NULL, " "); // Get the jobID from the command
             char message[256]; 
