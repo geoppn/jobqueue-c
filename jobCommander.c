@@ -36,7 +36,6 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
         } else {
-            // Parent process, wait for a while to let the child process create the file
             usleep(500000); // SLEEP FOR HALF A SECOND SO THE FILE GETS CREATED
         }
     }
@@ -53,7 +52,7 @@ int main(int argc, char *argv[]) {
     fclose(fp);
 
     // CONSTRUCT INSTRUCTION FROM ARGUMENTS
-    char instruction[1024] = ""; // CANT BE STATIC. FIX!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    char instruction[1024] = ""; 
     for (int i = 1; i < argc; i++) {
         strcat(instruction, argv[i]);
         strcat(instruction, " ");
