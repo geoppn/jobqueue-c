@@ -38,14 +38,15 @@ Job* addJob(char *command) { // ADD A JOB TO THE QUEUE
     return job;
 }
 
-Job *getNextJob() { // GET THE NEXT JOB IN THE QUEUE
-    if (queue == NULL) {
-        return NULL;
-    } else {
-        Job *job = queue;
-        queue = queue->next;
-        return job;
+Job *getNextJob() { // GET THE NEXT QUEUED JOB IN THE QUEUE WITHOUT REMOVING IT
+    Job *current = queue;
+    while (current != NULL) {
+        if (current->status == QUEUED) {
+            return current; // Return the first job that's queued
+        }
+        current = current->next;
     }
+    return NULL; // Return NULL if no queued jobs are found
 }
 
 Job *findJobById(char *id) {
@@ -110,7 +111,7 @@ char* getJobDetailsWithStatus(JobStatus status) { // GET THE JOB DETAILS WITH A 
         if (current->status == status) { // IF THE STATUS MATCHES:
             char jobDetails[256]; 
             // FORMAT THE JOB DETAILS AND APPEND THEM TO THE MESSAGE
-            snprintf(jobDetails, sizeof(jobDetails), "Job ID: %s, Command: %s, Queue Position: %d\n", current->id, current->command, current->queuePosition);
+            snprintf(jobDetails, sizeof(jobDetails), "Job ID: %.50s, Command: %.150s, Queue Position: %d\n", current->id, current->command, current->queuePosition); // ADDED PRECISION TO AVOID UNECESSARY WARNING
             strncat(message, jobDetails, 1024 - strlen(message) - 1); // Append job details to the message
         }
         current = current->next;

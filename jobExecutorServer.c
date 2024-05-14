@@ -16,8 +16,6 @@ char GjobID[10] = "job_0"; // JOBID GLOBAL VARIABLE TO REMOVE THE JOB WITHIN THE
 
 void handle_sigchld(int sig) {
     printf("SIGCHLD received\n");
-    printf("conc: %d\n", concurrency);
-    printf("running_jobs: %d\n", running_jobs);
 
     Job* jobToRemove = findJobById(GjobID); // FIND AND REMOVE THE PREVIOUS JOB BEFORE REPLACING IT
     if (jobToRemove != NULL) {
@@ -34,12 +32,13 @@ void handle_sigchld(int sig) {
         Job *job = getNextJob();
         if (job != NULL) {
             job->status = RUNNING; 
+            strncpy(GjobID, job->id, sizeof(GjobID)); // Update GjobID with the new job's ID
             pid_t pid = fork();
             if (pid == -1) {
                 perror("Failed to fork");
                 exit(EXIT_FAILURE);
             } else if (pid == 0) {
-                // Child process 
+                // CHILD:
                 char *args[] = {"/bin/sh", "-c", job->command, NULL};
                 execv(args[0], args);
                 perror("Failed to exec");
@@ -159,12 +158,15 @@ void handle_sigusr1(int sig) {
 
             char message[1024] = ""; // BUFFER FOR MESSAGE
             if (strcmp(status, "running ") == 0) { // SPACE NEEDED
+                printf("Polling running jobs\n");
                 char *jobDetails = getJobDetailsWithStatus(RUNNING);
                 strncat(message, jobDetails, sizeof(message) - strlen(message) - 1);
+                message[sizeof(message) - 1] = '\0'; 
                 free(jobDetails); // MEMORY 
             } else if (strcmp(status, "queued ") == 0) {
                 char *jobDetails = getJobDetailsWithStatus(QUEUED);
                 strncat(message, jobDetails, sizeof(message) - strlen(message) - 1);
+                message[sizeof(message) - 1] = '\0'; 
                 free(jobDetails); 
             } else {
                 snprintf(message, sizeof(message), "Invalid status for poll command. use 'running' or 'queued' as arguments.\n"); // INVALID CASE MESSAGE
