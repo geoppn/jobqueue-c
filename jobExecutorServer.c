@@ -10,21 +10,70 @@
 #include <signal.h>
 #include "jobQueue.h"
 
+#define MAX_JOBS 100
+
 int concurrency = 1; 
 int running_jobs = 0; // AMOUNT OF CURRENTLY RUNNING JOBS
-char GjobID[10] = "job_0"; // JOBID GLOBAL VARIABLE TO REMOVE THE JOB WITHIN THE SIGCHLD HANDLER TO ENSURE STOP WORKS CORRECTLY
+
+// LINKED LIST
+
+typedef struct Node {
+    char jobID[20];
+    struct Node* next;
+} Node;
+
+Node* GjobID = NULL; // Head of the linked list
+
+// Function to add a new job ID to the list
+void addJobID(char* jobID) {
+    Node* newNode = (Node*)malloc(sizeof(Node));
+    strncpy(newNode->jobID, jobID, sizeof(newNode->jobID));
+    newNode->next = GjobID;
+    GjobID = newNode;
+}
+
+// Function to remove a job ID from the list
+void removeJobID(char* jobID) {
+    Node* temp = GjobID, *prev;
+
+    // If head node itself holds the key to be deleted
+    if (temp != NULL && strcmp(temp->jobID, jobID) == 0) {
+        GjobID = temp->next; // Changed head
+        free(temp); // free old head
+        return;
+    }
+
+    // Search for the key to be deleted, keep track of the previous node as we need to change 'prev->next'
+    while (temp != NULL && strcmp(temp->jobID, jobID) != 0) {
+        prev = temp;
+        temp = temp->next;
+    }
+
+    // If key was not present in linked list
+    if (temp == NULL) return;
+
+    // Unlink the node from linked list
+    prev->next = temp->next;
+
+    free(temp); // Free memory
+}
 
 void handle_sigchld(int sig) {
     printf("SIGCHLD received\n");
-
-    Job* jobToRemove = findJobById(GjobID); // FIND AND REMOVE THE PREVIOUS JOB BEFORE REPLACING IT
-    if (jobToRemove != NULL) {
-        removeJob(jobToRemove);
-    }
+    printf("Running jobs: %d\n", running_jobs);
 
     // WAIT FOR THE CHILD PROCESS(ES) TO TERMINATE
     while (waitpid(-1, NULL, WNOHANG) > 0) {
         running_jobs--; // DECREMENT THE AMOUNT OF RUNNING JOBS (CURRENTLY)
+    }
+
+
+    if (GjobID != NULL) {
+        Job* jobToRemove = findJobById(GjobID->jobID);
+        if (jobToRemove != NULL) {
+            removeJob(jobToRemove);
+            removeJobID(GjobID->jobID);
+        }
     }
 
     // REPLACE THE TERMINATED JOBS WITH CORRESPONDING AMOUNT OF NEW ONES
@@ -32,7 +81,7 @@ void handle_sigchld(int sig) {
         Job *job = getNextJob();
         if (job != NULL) {
             job->status = RUNNING; 
-            strncpy(GjobID, job->id, sizeof(GjobID)); // Update GjobID with the new job's ID
+            addJobID(job->id); // ADD THE JOBID TO THE ID LIST
             pid_t pid = fork();
             if (pid == -1) {
                 perror("Failed to fork");
@@ -74,10 +123,12 @@ void handle_sigusr1(int sig) {
                 if (job->status == RUNNING) {
                     // IF THE JOB IS RUNNING, TERMINATE IT
                     kill(job->pid, SIGTERM);
+                    removeJobID(job->id); // Remove the job's ID from the list
                     sprintf(message, "%s terminated\n", job->id); // SEND MESSAGE TO THE PIPE
                 } else if (job->status == QUEUED) {
                     // IF THE JOB IS QUEUED, REMOVE IT FROM THE QUEUE
                     removeJob(job);
+                    removeJobID(job->id); // Remove the job's ID from the list
                     sprintf(message, "%s removed\n", job->id);
                 }
             } else {
@@ -142,7 +193,8 @@ void handle_sigusr1(int sig) {
                     // PARENT
                     job->pid = pid;  // STORE PID
                     job->status = RUNNING;
-                    strncpy(GjobID, job->id, sizeof(GjobID) - 1); // SAVE THE JOBID GLOBALLY
+                    addJobID(job->id); // SAVE THE JOBID GLOBALLY
+                    running_jobs++;
                     // HANDLE SIGCHLD IS TRIGGERED HERE
                 }
             }
