@@ -48,7 +48,6 @@ void removeJobID(char* jobID) { // FUNCTION TO REMOVE JOB ID FROM THE LIST
     if (temp == NULL) // IF THE NODE IS NOT FOUND:
         return;
 
-
     prev->next = temp->next; // UNLINK THE NODE
 
     free(temp); 
@@ -107,8 +106,18 @@ void handle_sigusr1(int sig) {
         close(pipe_fd);
         char *cmd = strtok(command, " ");
         if (strcmp(cmd, "setConcurrency") == 0) { // !!!!!!!!!!! SETCONCURRRENCY !!!!!!!!!!!
-            concurrency = atoi(strtok(NULL, " ")); // GET THE VALUE FROM THE COMMAND AND SET IT ON THE GLOBAL VAR.
-            printf("Concurrency set to %d\n", concurrency);
+            char *value = strtok(NULL, " "); // GET THE VALUE FROM THE COMMAND
+            if (value != NULL) {
+                int temp = atoi(value);
+                if (temp > 0) {
+                    concurrency = temp; // ONLY UPDATE THE VALUE IF ITS VALID
+                    printf("Concurrency set to %d\n", concurrency);
+                } else {
+                    printf("Invalid value for concurrency. It should be a positive integer!\n");
+                }
+            } else {
+                printf("No value provided for concurrency.\n");
+            }
             while (running_jobs < concurrency) {
                 Job *job = getNextJob();
                 if (job != NULL) {
@@ -229,6 +238,7 @@ void handle_sigusr1(int sig) {
                 free(jobDetails); // MEMORY 
             } else if (strcmp(status, "queued ") == 0) {
                 printf("Polling queued jobs:\n");
+
                 char *jobDetails = getJobDetailsWithStatus(QUEUED);
                 strncat(message, jobDetails, sizeof(message) - strlen(message) - 1);
                 message[sizeof(message) - 1] = '\0'; 
