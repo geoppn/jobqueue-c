@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
     // OPEN THE WRITE PIPE
     int pipe_fd = open("pipe_cmd_exec", O_WRONLY);
     if (pipe_fd == -1) {
-        perror("Failed to open pipe");
+        perror("Failed to open pipe pipe_cmd_exec");
         exit(EXIT_FAILURE);
     }
 
@@ -77,10 +77,31 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    // CLOSE PIPE
-    close(pipe_fd);
+    if (strcmp(instruction, "exit ") == 0) {
+        // OPEN THE READ PIPE
+        int pipe_fd2 = open("pipe_exec_cmd", O_RDONLY);
+        if (pipe_fd2 == -1) {
+            perror("Failed to open pipe_exec_cmd");
+            exit(EXIT_FAILURE);
+        }
 
-    if (strcmp(instruction, "exit ") == 0 || strncmp(instruction, "poll ", 5) == 0 || strncmp(instruction, "stop ", 5) == 0) { // SPACE NEEDED AFTER EXIT AND POLL
+        // READ THE MESSAGE
+        char message[1024];
+        if (read(pipe_fd2, message, sizeof(message)) > 0) {
+            printf("%s", message);
+        }
+        usleep(500000); // SLEEP FOR HALF A SECOND
+        // CLOSE AND DELETE READ PIPE
+        close(pipe_fd2);
+
+        if (unlink("pipe_exec_cmd") == -1) {
+            perror("Failed to unlink pipe_exec_cmd");
+        }
+
+        if (unlink("pipe_cmd_exec") == -1) {
+            perror("Failed to unlink pipe_cmd_exec");
+        }
+    } else if (strncmp(instruction, "poll ", 5) == 0 || strncmp(instruction, "stop ", 5) == 0) { // SPACE NEEDED AFTER INSTRUCTIONS
         // OPEN THE READ PIPE
         int pipe_fd2 = open("pipe_exec_cmd", O_RDONLY);
         if (pipe_fd2 == -1) {
@@ -101,6 +122,9 @@ int main(int argc, char *argv[]) {
             perror("Failed to unlink pipe_exec_cmd");
         }
     }
+
+    // CLOSE PIPE
+    close(pipe_fd);
 
     
     return 0;

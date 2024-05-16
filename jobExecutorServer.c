@@ -10,8 +10,6 @@
 #include <signal.h>
 #include "jobQueue.h"
 
-#define MAX_JOBS 100
-
 int concurrency = 1; 
 int running_jobs = 0; // AMOUNT OF CURRENTLY RUNNING JOBS
 
@@ -22,40 +20,38 @@ typedef struct Node {
     struct Node* next;
 } Node;
 
-Node* GjobID = NULL; // Head of the linked list
+Node* GjobID = NULL; // GLOBAL JOB ID LINKED LIST HEAD FOR PROPER TERMINATION OF JOBS AFTER RUNTIME
 
-// Function to add a new job ID to the list
-void addJobID(char* jobID) {
+
+void addJobID(char* jobID) { // FUNCTION TO ADD JOB ID TO THE LIST
     Node* newNode = (Node*)malloc(sizeof(Node));
     strncpy(newNode->jobID, jobID, sizeof(newNode->jobID));
     newNode->next = GjobID;
     GjobID = newNode;
 }
 
-// Function to remove a job ID from the list
-void removeJobID(char* jobID) {
+void removeJobID(char* jobID) { // FUNCTION TO REMOVE JOB ID FROM THE LIST
     Node* temp = GjobID, *prev;
 
-    // If head node itself holds the key to be deleted
+    // REPLACE THE HEAD NODE IF OUR SEARCHED NODE IS THE HEAD
     if (temp != NULL && strcmp(temp->jobID, jobID) == 0) {
-        GjobID = temp->next; // Changed head
-        free(temp); // free old head
+        GjobID = temp->next; // CHANGED
+        free(temp); // FREE OLD 
         return;
     }
 
-    // Search for the key to be deleted, keep track of the previous node as we need to change 'prev->next'
-    while (temp != NULL && strcmp(temp->jobID, jobID) != 0) {
+    while (temp != NULL && strcmp(temp->jobID, jobID) != 0) { // SEARCH FOR THE NODE
         prev = temp;
         temp = temp->next;
     }
 
-    // If key was not present in linked list
-    if (temp == NULL) return;
+    if (temp == NULL) // IF THE NODE IS NOT FOUND:
+        return;
 
-    // Unlink the node from linked list
-    prev->next = temp->next;
 
-    free(temp); // Free memory
+    prev->next = temp->next; // UNLINK THE NODE
+
+    free(temp); 
 }
 
 void handle_sigchld(int sig) {
@@ -93,6 +89,7 @@ void handle_sigchld(int sig) {
                 perror("Failed to exec");
                 exit(EXIT_FAILURE);
             } else {
+                job->pid = pid;
                 running_jobs++; // INCREMENT THE AMOUNT OF RUNNING JOBS TO KEEP TRACK
             }
         } else {
@@ -106,7 +103,7 @@ void handle_sigusr1(int sig) {
     memset(command, 0, sizeof(command)); // RESET COMMAND BUFFER BETWEEN COMMANDS!
     int pipe_fd = open("pipe_cmd_exec", O_RDONLY); // OPEN THE READ PIPE (ONLY WHEN SIGNAL IS RECEIVED)
     if (pipe_fd == -1) {
-        perror("Failed to open pipe");
+        perror("Failed to open pipe pipe_cmd_exec [SERVER]");
         exit(EXIT_FAILURE);
     }
     if (read(pipe_fd, command, sizeof(command)) > 0) {
@@ -114,6 +111,29 @@ void handle_sigusr1(int sig) {
         if (strcmp(cmd, "setConcurrency") == 0) { // !!!!!!!!!!! SETCONCURRRENCY !!!!!!!!!!!
             concurrency = atoi(strtok(NULL, " ")); // GET THE VALUE FROM THE COMMAND AND SET IT ON THE GLOBAL VAR.
             printf("Concurrency set to %d\n", concurrency);
+            while (running_jobs < concurrency) {
+                Job *job = getNextJob();
+                if (job != NULL) {
+                    job->status = RUNNING; 
+                    addJobID(job->id); // ADD THE JOBID TO THE ID LIST
+                    pid_t pid = fork();
+                    if (pid == -1) {
+                        perror("Failed to fork");
+                        exit(EXIT_FAILURE);
+                    } else if (pid == 0) {
+                        // CHILD:
+                        char *args[] = {"/bin/sh", "-c", job->command, NULL};
+                        execv(args[0], args);
+                        perror("Failed to exec");
+                        exit(EXIT_FAILURE);
+                    } else {
+                        job->pid = pid;
+                        running_jobs++; // INCREMENT THE AMOUNT OF RUNNING JOBS TO KEEP TRACK
+                    }
+                } else {
+                    break; // QUEUE IS EMPTY
+                }
+            }
         } else if (strcmp(cmd, "stop") == 0) { //        !!!!!!!!!!! STOP !!!!!!!!!!!
             char* jobID = strtok(NULL, " "); // GET THE JOBID FROM THE COMMAND
             char message[256]; 
@@ -123,12 +143,11 @@ void handle_sigusr1(int sig) {
                 if (job->status == RUNNING) {
                     // IF THE JOB IS RUNNING, TERMINATE IT
                     kill(job->pid, SIGTERM);
-                    removeJobID(job->id); // Remove the job's ID from the list
                     sprintf(message, "%s terminated\n", job->id); // SEND MESSAGE TO THE PIPE
                 } else if (job->status == QUEUED) {
                     // IF THE JOB IS QUEUED, REMOVE IT FROM THE QUEUE
                     removeJob(job);
-                    removeJobID(job->id); // Remove the job's ID from the list
+                    removeJobID(job->id); 
                     sprintf(message, "%s removed\n", job->id);
                 }
             } else {
@@ -152,11 +171,6 @@ void handle_sigusr1(int sig) {
                 perror("Failed to delete jobExecutorServer.txt");
             }
 
-            // UNLINK THE PIPE
-            if (unlink("pipe_cmd_exec") == -1) {
-                perror("Failed to unlink pipe_cmd_exec");
-            }
-
             // USE OTHER PIPE TO SEND MESSAGE TO JOBCOMMANDER
             int pipe_fd_write = open("pipe_exec_cmd", O_WRONLY);
             if (pipe_fd_write == -1) {
@@ -168,7 +182,7 @@ void handle_sigusr1(int sig) {
             if (write(pipe_fd_write, message, sizeof(message)) == -1) {
                 perror("Failed to write to pipe_exec_cmd");
             }
-
+            usleep(500000);
             close(pipe_fd_write);
          } else if (strcmp(cmd, "issueJob") == 0) { // !!!!!!!!!!! ISSUEJOB !!!!!!!!!!!
             // GET THE COMMAND FROM THE INPUT
@@ -179,7 +193,7 @@ void handle_sigusr1(int sig) {
                 // PRINT THE JOB DETAILS
                 printf("<%s,%s,%d>\n", job->id, job->command, job->queuePosition);
             } 
-            if (getQueueLength() == 1) { // IF ITS THE FIRST JOB WITHIN THE QUEUE, EXECUTE IT LOCALLY
+            if (getQueueLength() <= concurrency) { // IF ITS THE FIRST JOB WITHIN THE QUEUE, EXECUTE IT LOCALLY
                 pid_t pid = fork();
                 if (pid == 0) {
                     // CHILD:
@@ -224,7 +238,7 @@ void handle_sigusr1(int sig) {
                 snprintf(message, sizeof(message), "Invalid status for poll command. use 'running' or 'queued' as arguments.\n"); // INVALID CASE MESSAGE
             }
 
-            if (write(pipe_fd_write, message, strlen(message)) == -1) {
+            if (write(pipe_fd_write, message, sizeof(message)) == -1) {
                 perror("Failed to write to pipe_exec_cmd");
             }
 
@@ -239,11 +253,18 @@ int main() {
     signal(SIGUSR1, handle_sigusr1);
     signal(SIGCHLD, handle_sigchld);
 
+    FILE *file = NULL;
 
     // CREATE JOBEXECUTORSERVER.TXT AND WRITE PID
-    FILE *file = fopen("jobExecutorServer.txt", "w");
-    if (file == NULL) {
-        perror("Failed to create jobExecutorServer.txt");
+    if (access("jobExecutorServer.txt", F_OK) == -1) {
+        // File does not exist, try to create it
+        file = fopen("jobExecutorServer.txt", "w");
+        if (file == NULL) {
+            perror("Failed to create jobExecutorServer.txt");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        perror("File jobExecutorServer.txt already exists");
         exit(EXIT_FAILURE);
     }
 

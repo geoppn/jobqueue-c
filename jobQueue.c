@@ -112,7 +112,7 @@ char* getJobDetailsWithStatus(JobStatus status) { // GET THE JOB DETAILS WITH A 
             char jobDetails[256]; 
             // FORMAT THE JOB DETAILS AND APPEND THEM TO THE MESSAGE
             snprintf(jobDetails, sizeof(jobDetails), "Job ID: %.50s, Command: %.150s, Queue Position: %d\n", current->id, current->command, current->queuePosition); // ADDED PRECISION TO AVOID UNECESSARY WARNING
-            strncat(message, jobDetails, 1024 - strlen(message) - 1); // Append job details to the message
+            strncat(message, jobDetails, 1024 - strlen(message) - 1); // APPEND THE JOB DETAILS TO THE MESSAGE
         }
         current = current->next;
     }
