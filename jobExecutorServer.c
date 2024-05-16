@@ -55,9 +55,6 @@ void removeJobID(char* jobID) { // FUNCTION TO REMOVE JOB ID FROM THE LIST
 }
 
 void handle_sigchld(int sig) {
-    printf("SIGCHLD received\n");
-    printf("Running jobs: %d\n", running_jobs);
-
     // WAIT FOR THE CHILD PROCESS(ES) TO TERMINATE
     while (waitpid(-1, NULL, WNOHANG) > 0) {
         running_jobs--; // DECREMENT THE AMOUNT OF RUNNING JOBS (CURRENTLY)
@@ -100,13 +97,14 @@ void handle_sigchld(int sig) {
 
 void handle_sigusr1(int sig) {
     char command[1024];
-    memset(command, 0, sizeof(command)); // RESET COMMAND BUFFER BETWEEN COMMANDS!
+    memset(command, 0, 1024); // RESET COMMAND BUFFER BETWEEN COMMANDS! (1024 static over sizeof due to it causing issues)
     int pipe_fd = open("pipe_cmd_exec", O_RDONLY); // OPEN THE READ PIPE (ONLY WHEN SIGNAL IS RECEIVED)
     if (pipe_fd == -1) {
         perror("Failed to open pipe pipe_cmd_exec [SERVER]");
         exit(EXIT_FAILURE);
     }
     if (read(pipe_fd, command, sizeof(command)) > 0) {
+        close(pipe_fd);
         char *cmd = strtok(command, " ");
         if (strcmp(cmd, "setConcurrency") == 0) { // !!!!!!!!!!! SETCONCURRRENCY !!!!!!!!!!!
             concurrency = atoi(strtok(NULL, " ")); // GET THE VALUE FROM THE COMMAND AND SET IT ON THE GLOBAL VAR.
@@ -224,12 +222,13 @@ void handle_sigusr1(int sig) {
 
             char message[1024] = ""; // BUFFER FOR MESSAGE
             if (strcmp(status, "running ") == 0) { // SPACE NEEDED
-                printf("Polling running jobs\n");
+                printf("Polling running jobs:\n");
                 char *jobDetails = getJobDetailsWithStatus(RUNNING);
                 strncat(message, jobDetails, sizeof(message) - strlen(message) - 1);
                 message[sizeof(message) - 1] = '\0'; 
                 free(jobDetails); // MEMORY 
             } else if (strcmp(status, "queued ") == 0) {
+                printf("Polling queued jobs:\n");
                 char *jobDetails = getJobDetailsWithStatus(QUEUED);
                 strncat(message, jobDetails, sizeof(message) - strlen(message) - 1);
                 message[sizeof(message) - 1] = '\0'; 
@@ -245,8 +244,6 @@ void handle_sigusr1(int sig) {
             close(pipe_fd_write);
         }
     }
-    
-    close(pipe_fd);
 }
 int main() {
     // SIGNAL HANDLING
